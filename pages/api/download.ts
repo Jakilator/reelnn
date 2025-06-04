@@ -38,7 +38,11 @@ export default async function handler(request: Request) {
     // Use URL shortener if API URL and key are available
     if (SHORTENER_API_URL && SHORTENER_API_KEY) {
       try {
-        const shortenerUrl = `${SHORTENER_API_URL}?api=${SHORTENER_API_KEY}&url=${encodeURIComponent(streamUrl)}`;
+        // Convert relative URL to absolute URL
+        const absoluteUrl = new URL(streamUrl, request.url).toString();
+        console.log('Converted to absolute URL:', absoluteUrl);
+        
+        const shortenerUrl = `${SHORTENER_API_URL}?api=${SHORTENER_API_KEY}&url=${encodeURIComponent(absoluteUrl)}`;
         console.log('Sending request to shortener:', shortenerUrl);
         
         const response = await fetch(shortenerUrl);
