@@ -28,19 +28,36 @@ export default async function handler(request: Request) {
     
     let directLink = streamUrl;
     
+    // Debug logs
+    console.log('Shortener Config:', {
+      SHORTENER_API_URL,
+      hasKey: !!SHORTENER_API_KEY,
+      originalUrl: streamUrl
+    });
+    
     // Use URL shortener if API URL and key are available
     if (SHORTENER_API_URL && SHORTENER_API_KEY) {
       try {
         const shortenerUrl = `${SHORTENER_API_URL}?api=${SHORTENER_API_KEY}&url=${encodeURIComponent(streamUrl)}`;
+        console.log('Sending request to shortener:', shortenerUrl);
+        
         const response = await fetch(shortenerUrl);
+        console.log('Shortener response status:', response.status);
+        
         const data = await response.json();
+        console.log('Shortener response data:', data);
         
         if (data && data.shortenedUrl) {
           directLink = data.shortenedUrl;
+          console.log('Using shortened URL:', directLink);
+        } else {
+          console.log('No shortened URL in response, using original URL');
         }
       } catch (shortenerError) {
         console.error('URL shortener error:', shortenerError);
       }
+    } else {
+      console.log('Shortener not configured, using original URL');
     }
 
     return new Response(JSON.stringify({
