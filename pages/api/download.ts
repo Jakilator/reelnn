@@ -2,6 +2,32 @@ import { NEXT_PUBLIC_TELEGRAM_BOT_NAME, SHORTENER_API_URL, SHORTENER_API_KEY } f
 
 export const runtime = 'edge';
 
+// Helper function to shorten URL
+async function shortenUrl(url: string): Promise<string> {
+  if (!SHORTENER_API_URL || !SHORTENER_API_KEY) {
+    return url;
+  }
+
+  try {
+    const shortenerUrl = `${SHORTENER_API_URL}?api=${SHORTENER_API_KEY}&url=${encodeURIComponent(url)}`;
+    console.log('Sending request to shortener:', shortenerUrl);
+    
+    const response = await fetch(shortenerUrl);
+    console.log('Shortener response status:', response.status);
+    
+    const data = await response.json();
+    console.log('Shortener response data:', data);
+    
+    if (data && data.shortenedUrl) {
+      console.log('Successfully shortened URL:', data.shortenedUrl);
+      return data.shortenedUrl;
+    }
+  } catch (error) {
+    console.error('URL shortener error:', error);
+  }
+  return url;
+}
+
 export default async function handler(request: Request) {
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -24,9 +50,8 @@ export default async function handler(request: Request) {
     const mediaTypeCode = mediaType === 'show' ? 's' : 'm';
     const compactParams = `${contentId}_${mediaTypeCode}_${qualityIndex}_${seasonNumber || 0}_${episodeNumber || 0}`;
   
+    // Create Telegram link
     const telegramLink = `https://t.me/${NEXT_PUBLIC_TELEGRAM_BOT_NAME}?start=file_${compactParams}&text=${encodeURIComponent(`${title} ${quality}`)}`;
-    
-    let directLink = streamUrl;
     
     // Debug logs
     console.log('Shortener Config:', {
@@ -35,38 +60,19 @@ export default async function handler(request: Request) {
       originalUrl: streamUrl
     });
     
-    // Use URL shortener if API URL and key are available
-    if (SHORTENER_API_URL && SHORTENER_API_KEY) {
-      try {
-        // Convert relative URL to absolute URL
-        const absoluteUrl = new URL(streamUrl, request.url).toString();
-        console.log('Converted to absolute URL:', absoluteUrl);
-        
-        const shortenerUrl = `${SHORTENER_API_URL}?api=${SHORTENER_API_KEY}&url=${encodeURIComponent(absoluteUrl)}`;
-        console.log('Sending request to shortener:', shortenerUrl);
-        
-        const response = await fetch(shortenerUrl);
-        console.log('Shortener response status:', response.status);
-        
-        const data = await response.json();
-        console.log('Shortener response data:', data);
-        
-        if (data && data.shortenedUrl) {
-          directLink = data.shortenedUrl;
-          console.log('Using shortened URL:', directLink);
-        } else {
-          console.log('No shortened URL in response, using original URL');
-        }
-      } catch (shortenerError) {
-        console.error('URL shortener error:', shortenerError);
-      }
-    } else {
-      console.log('Shortener not configured, using original URL');
-    }
+    // Convert relative URL to absolute URL for direct link
+    const absoluteUrl = new URL(streamUrl, request.url).toString();
+    console.log('Converted to absolute URL:', absoluteUrl);
+    
+    // Shorten both URLs
+    const [shortenedDirectLink, shortenedTelegramLink] = await Promise.all([
+      shortenUrl(absoluteUrl),
+      shortenUrl(telegramLink)
+    ]);
 
     return new Response(JSON.stringify({
-      directLink,
-      telegramLink,
+      directLink: shortenedDirectLink,
+      telegramLink: shortenedTelegramLink,
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
